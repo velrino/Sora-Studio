@@ -136,9 +136,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
                   key={img.id}
                   className="relative group rounded-md overflow-hidden border border-gray-200 bg-white"
                 >
-                  <img src={img.dataUrl} alt={`${img.title} ${idx + 1}`} className="w-full h-auto" />
+                  {img.dataUrl ? (
+                    <img src={img.dataUrl} alt={`${img.title} ${idx + 1}`} className="w-full h-auto" />
+                  ) : (
+                    <div className="aspect-square bg-gray-100 animate-pulse" />
+                  )}
                   <button
-                    onClick={() => handleImageDownload(img.dataUrl, `${img.title || 'image'}-${idx + 1}.png`)}
+                    disabled={!img.dataUrl}
+                    onClick={() => img.dataUrl && handleImageDownload(img.dataUrl, `${img.title || 'image'}-${idx + 1}.png`)}
                     className="absolute top-2 right-2 p-1.5 bg-white bg-opacity-90 text-teal-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow"
                     title="Download image"
                   >

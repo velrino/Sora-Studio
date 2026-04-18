@@ -364,10 +364,15 @@ function ImageHistoryContent() {
                     key={img.id}
                     className="relative group rounded-md overflow-hidden border border-gray-200"
                   >
-                    <img src={img.dataUrl} alt={`${img.title} ${idx + 1}`} className="w-full h-auto block" />
+                    {img.dataUrl ? (
+                      <img src={img.dataUrl} alt={`${img.title} ${idx + 1}`} className="w-full h-auto block" />
+                    ) : (
+                      <div className="aspect-square bg-gray-100 animate-pulse" />
+                    )}
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
                       <button
-                        onClick={() => handleDownload(img.dataUrl, `${img.title || 'image'}-${idx + 1}.png`)}
+                        disabled={!img.dataUrl}
+                        onClick={() => img.dataUrl && handleDownload(img.dataUrl, `${img.title || 'image'}-${idx + 1}.png`)}
                         className="p-2 bg-white text-teal-700 rounded-full shadow hover:bg-teal-50"
                         title="Download"
                       >

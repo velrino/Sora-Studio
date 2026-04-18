@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { putImage, getImage, deleteImage as deleteImageFromIDB, deleteImages as deleteImagesFromIDB } from '@/lib/imageStorage';
 
 export type InfoMessageType = 'generation' | 'remix_reference';
 
@@ -159,6 +160,16 @@ interface AppState {
   saveImageGroup: (images: string[], prompt: string, title: string, meta: { model: string; size: string; quality: string; hadBaseImage: boolean }) => string[];
   deleteImage: (id: string) => void;
   newConversation: () => void;
+}
+
+function persistSavedImagesMeta(images: SavedImage[]) {
+  // Strip dataUrl before writing to localStorage. Blobs live in IndexedDB.
+  const meta = images.map(({ dataUrl, ...rest }) => rest);
+  try {
+    localStorage.setItem('saved_images', JSON.stringify(meta));
+  } catch (err) {
+    console.error('Failed to persist saved_images metadata:', err);
+  }
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -380,9 +391,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     const updatedVideos = state.savedVideos.filter(v => v.conversationId !== id);
     localStorage.setItem('saved_videos', JSON.stringify(updatedVideos));
 
+    // Delete associated images (both metadata and IndexedDB blobs)
+    const orphanedImages = state.savedImages.filter((img) => img.conversationId === id);
+    const remainingImages = state.savedImages.filter((img) => img.conversationId !== id);
+    persistSavedImagesMeta(remainingImages);
+    if (orphanedImages.length > 0) {
+      deleteImagesFromIDB(orphanedImages.map((img) => img.id)).catch((err) =>
+        console.error('Failed to delete images from IDB:', err),
+      );
+    }
+
     set({
       savedConversations: updatedConversations,
       savedVideos: updatedVideos,
+      savedImages: remainingImages,
     });
   },
 
@@ -407,8 +429,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       hadBaseImage: meta.hadBaseImage,
     }));
 
+    // Heavy base64 blobs go to IndexedDB (localStorage is too small).
+    Promise.all(entries.map((e) => putImage(e.id, e.dataUrl))).catch((err) => {
+      console.error('Failed to persist image to IndexedDB:', err);
+    });
+
     const updated = [...entries, ...state.savedImages];
-    localStorage.setItem('saved_images', JSON.stringify(updated));
+    persistSavedImagesMeta(updated);
     set({ savedImages: updated });
 
     return entries.map((e) => e.id);
@@ -417,8 +444,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   deleteImage: (id) => {
     const state = get();
     const updated = state.savedImages.filter((img) => img.id !== id);
-    localStorage.setItem('saved_images', JSON.stringify(updated));
+    persistSavedImagesMeta(updated);
     set({ savedImages: updated });
+    deleteImageFromIDB(id).catch((err) => console.error('Failed to delete image from IDB:', err));
   },
 
   saveVideo: (videoId, prompt, title, remixedFromVideoId = null) => {
@@ -511,7 +539,31 @@ if (typeof window !== 'undefined') {
   const storedImages = localStorage.getItem('saved_images');
   if (storedImages) {
     try {
-      useAppStore.setState({ savedImages: JSON.parse(storedImages) });
+      const parsed: SavedImage[] = JSON.parse(storedImages).map((img: any) => ({
+        ...img,
+        dataUrl: img.dataUrl ?? '',
+      }));
+      useAppStore.setState({ savedImages: parsed });
+
+      // Migrate: any legacy entries that still carry dataUrl inline get
+      // copied into IndexedDB so the next persist (metadata-only) is safe.
+      const legacy = parsed.filter((img) => img.dataUrl);
+      if (legacy.length > 0) {
+        Promise.all(legacy.map((img) => putImage(img.id, img.dataUrl)))
+          .then(() => persistSavedImagesMeta(parsed))
+          .catch((err) => console.error('Failed to migrate images to IDB:', err));
+      }
+
+      // Async-load blobs for entries that didn't have dataUrl inline.
+      Promise.all(
+        parsed.map(async (img) => {
+          if (img.dataUrl) return img;
+          const loaded = await getImage(img.id).catch(() => null);
+          return loaded ? { ...img, dataUrl: loaded } : img;
+        }),
+      ).then((withBlobs) => {
+        useAppStore.setState({ savedImages: withBlobs });
+      });
     } catch (e) {
       console.error('Failed to parse saved images');
     }
