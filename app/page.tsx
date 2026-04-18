@@ -13,6 +13,48 @@ import { Check, DownloadCloud } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+// Thumbnail preview for a Sora video, fetched with auth header
+function VideoThumbnail({ videoId, apiKey, alt }: { videoId: string; apiKey: string; alt: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let revoked = false;
+    let objectUrl: string | null = null;
+
+    fetch(`/api/videos/download/${videoId}?variant=thumbnail`, {
+      headers: { 'x-api-key': apiKey },
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error('thumbnail fetch failed');
+        return r.blob();
+      })
+      .then((blob) => {
+        if (revoked) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(() => setFailed(true));
+
+    return () => {
+      revoked = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [videoId, apiKey]);
+
+  if (failed) return null;
+
+  return (
+    <div className="relative w-full aspect-video mb-2 overflow-hidden rounded-md bg-gray-100">
+      {url ? (
+        <img src={url} alt={alt} className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-full h-full animate-pulse bg-gray-200" />
+      )}
+    </div>
+  );
+}
+
 // Video History Content Component
 function VideoHistoryContent() {
   const { apiKey, savedVideos, loadConversation, referenceVideoForRemix } = useAppStore();
@@ -161,6 +203,9 @@ function VideoHistoryContent() {
             key={video.id}
             className="p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
           >
+            {video.status === 'completed' && !video.expired && apiKey && (
+              <VideoThumbnail videoId={video.id} apiKey={apiKey} alt={displayTitle} />
+            )}
             <p className="text-sm font-semibold text-gray-900 line-clamp-2 mb-1">
               {displayTitle}
             </p>

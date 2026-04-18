@@ -16,16 +16,26 @@ export async function GET(
       );
     }
 
+    const variantParam = request.nextUrl.searchParams.get('variant');
+    const variant = variantParam === 'thumbnail' || variantParam === 'spritesheet' ? variantParam : 'video';
+
     const openai = new OpenAI({ apiKey });
-    const content = await openai.videos.downloadContent(id);
+    const content = await openai.videos.downloadContent(id, { variant });
 
     const arrayBuffer = await content.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    const variantMeta = {
+      video: { contentType: 'video/mp4', disposition: `attachment; filename="video-${id}.mp4"` },
+      thumbnail: { contentType: 'image/webp', disposition: `inline; filename="thumbnail-${id}.webp"` },
+      spritesheet: { contentType: 'image/webp', disposition: `inline; filename="spritesheet-${id}.webp"` },
+    }[variant];
+
     return new NextResponse(buffer, {
       headers: {
-        'Content-Type': 'video/mp4',
-        'Content-Disposition': `attachment; filename="video-${id}.mp4"`,
+        'Content-Type': variantMeta.contentType,
+        'Content-Disposition': variantMeta.disposition,
+        'Cache-Control': variant === 'video' ? 'no-store' : 'private, max-age=3600',
       },
     });
   } catch (error: any) {
