@@ -3,6 +3,7 @@
 import { useAppStore } from '@/store/useAppStore';
 import React, { useEffect } from 'react';
 import { getSizeOptionsForModel } from '@/lib/videoOptions';
+import { estimateImageCost, formatCost } from '@/lib/imagePricing';
 
 const IMAGE_SIZE_OPTIONS = [
   { value: '1024x1024', label: '1024 × 1024 (Square)' },
@@ -146,6 +147,12 @@ const VideoConfig: React.FC = () => {
 
 const ImageConfig: React.FC = () => {
   const { imageConfig, setImageConfig } = useAppStore();
+  const cost = estimateImageCost({
+    model: imageConfig.model,
+    quality: imageConfig.quality,
+    size: imageConfig.size,
+    n: imageConfig.n,
+  });
 
   return (
     <>
@@ -159,6 +166,28 @@ const ImageConfig: React.FC = () => {
             Generating <span className="font-semibold text-teal-600">{imageConfig.n}</span> image{imageConfig.n > 1 ? 's' : ''} per request
           </p>
         </div>
+      </div>
+
+      <div className="bg-teal-50 border border-teal-200 rounded-lg p-3">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs font-medium text-teal-900">Estimated cost</span>
+          {cost?.approximate && (
+            <span className="text-[10px] uppercase tracking-wide text-teal-700">approx.</span>
+          )}
+        </div>
+        {cost ? (
+          <>
+            <p className="text-lg font-bold text-teal-700">
+              {cost.approximate ? '~' : ''}
+              {formatCost(cost.total)}
+            </p>
+            <p className="text-xs text-gray-600 mt-0.5">
+              {imageConfig.n} × {formatCost(cost.perImage)} per image
+            </p>
+          </>
+        ) : (
+          <p className="text-xs text-gray-500">Pricing unavailable for current selection.</p>
+        )}
       </div>
 
       <div>
