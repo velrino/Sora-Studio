@@ -213,31 +213,21 @@ const ImageConfig: React.FC = () => {
       </div>
 
       <div>
-        <label className="flex items-center justify-between gap-3 cursor-pointer">
+        <label className="flex items-center justify-between gap-3">
           <div>
-            <span className="block text-sm font-medium text-gray-700">Live preview</span>
-            <span className="block text-xs text-gray-500 mt-0.5">
-              Stream progressive frames as each image forms (+200 tokens/image). Not supported for base-image edits.
+            <span className="block text-sm font-medium text-gray-400">Live preview</span>
+            <span className="block text-xs text-gray-400 mt-0.5">
+              Stream progressive frames as each image forms (+200 tokens/image). Coming soon.
             </span>
           </div>
           <button
             type="button"
             role="switch"
-            aria-checked={imageConfig.partialImages > 0}
-            onClick={() =>
-              setImageConfig({
-                partialImages: imageConfig.partialImages > 0 ? 0 : LIVE_PREVIEW_PARTIAL_COUNT,
-              })
-            }
-            className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-              imageConfig.partialImages > 0 ? 'bg-teal-600' : 'bg-gray-300'
-            }`}
+            aria-checked={false}
+            disabled
+            className="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full bg-gray-200 opacity-60 cursor-not-allowed"
           >
-            <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                imageConfig.partialImages > 0 ? 'translate-x-5' : 'translate-x-0.5'
-              }`}
-            />
+            <span className="inline-block h-5 w-5 transform rounded-full bg-white shadow translate-x-0.5" />
           </button>
         </label>
       </div>
