@@ -123,6 +123,8 @@ interface AppState {
   setShowVideoHistory: (show: boolean) => void;
 
   // Chat
+  chatInput: string;
+  setChatInput: (value: string) => void;
   chatMessages: ChatMessage[];
   addChatMessage: (message: Omit<ChatMessage, 'id' | 'timestamp'>) => void;
   readyToGenerate: boolean;
@@ -222,6 +224,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setShowVideoHistory: (show) => set({ showVideoHistory: show }),
 
   // Chat
+  chatInput: '',
+  setChatInput: (value) => set({ chatInput: value }),
   chatMessages: [
     {
       id: 'welcome',
@@ -441,6 +445,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       readyToGenerate: false,
       baseImage: null,
       remixReference: null,
+      chatInput: '',
     });
   },
 }));

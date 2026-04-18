@@ -26,19 +26,20 @@ async function previewUrlToBase64(url: string): Promise<string> {
 }
 
 export function useImageGeneration() {
-  const {
-    apiKey,
-    chatMessages,
-    baseImage,
-    imageConfig,
-    updateImageGeneration,
-    resetImageGeneration,
-    saveImageGroup,
-    addChatMessage,
-    saveCurrentConversation,
-  } = useAppStore();
-
   const generateImages = useCallback(async () => {
+    const state = useAppStore.getState();
+    const {
+      apiKey,
+      chatMessages,
+      baseImage,
+      imageConfig,
+      updateImageGeneration,
+      resetImageGeneration,
+      saveImageGroup,
+      addChatMessage,
+      saveCurrentConversation,
+    } = state;
+
     if (!apiKey) {
       toast.error('Please set your OpenAI API key in settings');
       return;
@@ -169,17 +170,7 @@ export function useImageGeneration() {
       });
       updateImageGeneration({ status: 'failed', error: errorMessage, errorCode });
     }
-  }, [
-    apiKey,
-    chatMessages,
-    baseImage,
-    imageConfig,
-    updateImageGeneration,
-    resetImageGeneration,
-    saveImageGroup,
-    addChatMessage,
-    saveCurrentConversation,
-  ]);
+  }, []);
 
   return { generateImages };
 }

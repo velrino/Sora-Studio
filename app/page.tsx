@@ -470,13 +470,21 @@ export default function Home() {
       toast.error('Please set your OpenAI API key in settings');
       return;
     }
-    const hasUserPrompt = chatMessages.some(
+
+    const state = useAppStore.getState();
+    const pending = state.chatInput.trim();
+    const hasUserPrompt = state.chatMessages.some(
       (m) => m.role === 'user' && m.content.trim().length > 0,
     );
-    if (!hasUserPrompt) {
+
+    if (pending) {
+      state.addChatMessage({ role: 'user', content: pending });
+      state.setChatInput('');
+    } else if (!hasUserPrompt) {
       toast.error('Please describe the image you want in the chat');
       return;
     }
+
     setReadyToGenerate(false);
     generateImages();
   };
