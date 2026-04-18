@@ -19,6 +19,7 @@ export interface ChatMessage {
   content: string;
   timestamp: number;
   videoId?: string | null;
+  imageIds?: string[] | null;
   metadata?: InfoMessageMetadata;
   errorMetadata?: ErrorMetadata;
 }
@@ -52,10 +53,40 @@ export interface SavedVideo {
   remixedFromVideoId?: string | null;
 }
 
+export interface SavedImage {
+  id: string;
+  conversationId: string | null;
+  prompt: string;
+  title: string;
+  dataUrl: string;
+  createdAt: number;
+  model: string;
+  size: string;
+  quality: string;
+  groupId: string;
+  indexInGroup: number;
+  hadBaseImage: boolean;
+}
+
 export interface VideoConfig {
   size: string;
   seconds: string;
 }
+
+export interface ImageConfig {
+  n: number;
+  size: string;
+  quality: string;
+  model: string;
+}
+
+export interface ImageGeneration {
+  status: 'idle' | 'generating' | 'completed' | 'failed';
+  error: string | null;
+  errorCode?: string | null;
+}
+
+export type GenerationMode = 'video' | 'image';
 
 interface AppState {
   // API Key
@@ -66,9 +97,17 @@ interface AppState {
   selectedModel: 'sora-2' | 'sora-2-pro';
   setSelectedModel: (model: 'sora-2' | 'sora-2-pro') => void;
 
+  // Generation Mode (video vs image)
+  generationMode: GenerationMode;
+  setGenerationMode: (mode: GenerationMode) => void;
+
   // Video Configuration
   videoConfig: VideoConfig;
   setVideoConfig: (config: Partial<VideoConfig>) => void;
+
+  // Image Configuration
+  imageConfig: ImageConfig;
+  setImageConfig: (config: Partial<ImageConfig>) => void;
 
   // Base Image
   baseImage: { file?: File; previewUrl: string; cropX?: number; cropY?: number } | null;
@@ -97,14 +136,22 @@ interface AppState {
   updateVideoGeneration: (updates: Partial<VideoGeneration>) => void;
   resetVideoGeneration: () => void;
 
+  // Image Generation
+  imageGeneration: ImageGeneration;
+  updateImageGeneration: (updates: Partial<ImageGeneration>) => void;
+  resetImageGeneration: () => void;
+
   // Conversation History
   currentConversationId: string | null;
   savedConversations: SavedConversation[];
   savedVideos: SavedVideo[];
+  savedImages: SavedImage[];
   saveCurrentConversation: () => void;
   loadConversation: (id: string) => void;
   deleteConversation: (id: string) => void;
   saveVideo: (videoId: string, prompt: string, title: string, remixedFromVideoId?: string | null) => void;
+  saveImageGroup: (images: string[], prompt: string, title: string, meta: { model: string; size: string; quality: string; hadBaseImage: boolean }) => string[];
+  deleteImage: (id: string) => void;
   newConversation: () => void;
 }
 
@@ -127,6 +174,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ selectedModel: model });
   },
 
+  // Generation Mode
+  generationMode: 'video',
+  setGenerationMode: (mode) => {
+    localStorage.setItem('generation_mode', mode);
+    set({ generationMode: mode });
+  },
+
   // Video Configuration
   videoConfig: {
     size: '1280x720',
@@ -136,6 +190,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     const newConfig = { ...get().videoConfig, ...config };
     localStorage.setItem('video_config', JSON.stringify(newConfig));
     set({ videoConfig: newConfig });
+  },
+
+  // Image Configuration
+  imageConfig: {
+    n: 1,
+    size: '1024x1024',
+    quality: 'auto',
+    model: 'gpt-image-1.5',
+  },
+  setImageConfig: (config) => {
+    const newConfig = { ...get().imageConfig, ...config };
+    localStorage.setItem('image_config', JSON.stringify(newConfig));
+    set({ imageConfig: newConfig });
   },
 
   // Base Image
@@ -220,10 +287,25 @@ export const useAppStore = create<AppState>((set, get) => ({
       },
     }),
 
+  // Image Generation
+  imageGeneration: {
+    status: 'idle',
+    error: null,
+  },
+  updateImageGeneration: (updates) =>
+    set((state) => ({
+      imageGeneration: { ...state.imageGeneration, ...updates },
+    })),
+  resetImageGeneration: () =>
+    set({
+      imageGeneration: { status: 'idle', error: null },
+    }),
+
   // Conversation History
   currentConversationId: null,
   savedConversations: [],
   savedVideos: [],
+  savedImages: [],
 
   saveCurrentConversation: () => {
     const state = get();
@@ -284,6 +366,41 @@ export const useAppStore = create<AppState>((set, get) => ({
       savedConversations: updatedConversations,
       savedVideos: updatedVideos,
     });
+  },
+
+  saveImageGroup: (images, prompt, title, meta) => {
+    const state = get();
+    const groupId = `img-grp-${Date.now()}`;
+    const createdAt = Date.now();
+    const conversationId = state.currentConversationId;
+
+    const entries: SavedImage[] = images.map((dataUrl, index) => ({
+      id: `img-${createdAt}-${index}`,
+      conversationId,
+      prompt,
+      title,
+      dataUrl,
+      createdAt,
+      model: meta.model,
+      size: meta.size,
+      quality: meta.quality,
+      groupId,
+      indexInGroup: index,
+      hadBaseImage: meta.hadBaseImage,
+    }));
+
+    const updated = [...entries, ...state.savedImages];
+    localStorage.setItem('saved_images', JSON.stringify(updated));
+    set({ savedImages: updated });
+
+    return entries.map((e) => e.id);
+  },
+
+  deleteImage: (id) => {
+    const state = get();
+    const updated = state.savedImages.filter((img) => img.id !== id);
+    localStorage.setItem('saved_images', JSON.stringify(updated));
+    set({ savedImages: updated });
   },
 
   saveVideo: (videoId, prompt, title, remixedFromVideoId = null) => {
@@ -370,5 +487,29 @@ if (typeof window !== 'undefined') {
     } catch (e) {
       console.error('Failed to parse saved videos');
     }
+  }
+
+  const storedImages = localStorage.getItem('saved_images');
+  if (storedImages) {
+    try {
+      useAppStore.setState({ savedImages: JSON.parse(storedImages) });
+    } catch (e) {
+      console.error('Failed to parse saved images');
+    }
+  }
+
+  const storedImageConfig = localStorage.getItem('image_config');
+  if (storedImageConfig) {
+    try {
+      const parsed = JSON.parse(storedImageConfig);
+      useAppStore.setState((state) => ({ imageConfig: { ...state.imageConfig, ...parsed } }));
+    } catch (e) {
+      console.error('Failed to parse image config');
+    }
+  }
+
+  const storedGenerationMode = localStorage.getItem('generation_mode') as GenerationMode | null;
+  if (storedGenerationMode === 'video' || storedGenerationMode === 'image') {
+    useAppStore.setState({ generationMode: storedGenerationMode });
   }
 }
