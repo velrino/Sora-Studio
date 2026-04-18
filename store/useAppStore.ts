@@ -78,12 +78,16 @@ export interface ImageConfig {
   size: string;
   quality: string;
   model: string;
+  partialImages: 0 | 1 | 2 | 3;
 }
 
 export interface ImageGeneration {
   status: 'idle' | 'generating' | 'completed' | 'failed';
   error: string | null;
   errorCode?: string | null;
+  startedAt: number | null;
+  partialPreviews: (string | null)[];
+  activeIndex: number;
 }
 
 export type GenerationMode = 'video' | 'image';
@@ -200,6 +204,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     size: '1024x1024',
     quality: 'auto',
     model: 'gpt-image-1.5',
+    partialImages: 0,
   },
   setImageConfig: (config) => {
     const newConfig = { ...get().imageConfig, ...config };
@@ -295,6 +300,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   imageGeneration: {
     status: 'idle',
     error: null,
+    startedAt: null,
+    partialPreviews: [],
+    activeIndex: 0,
   },
   updateImageGeneration: (updates) =>
     set((state) => ({
@@ -302,7 +310,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
   resetImageGeneration: () =>
     set({
-      imageGeneration: { status: 'idle', error: null },
+      imageGeneration: {
+        status: 'idle',
+        error: null,
+        startedAt: null,
+        partialPreviews: [],
+        activeIndex: 0,
+      },
     }),
 
   // Conversation History

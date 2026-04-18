@@ -393,6 +393,88 @@ function ImageHistoryContent() {
   );
 }
 
+function useElapsedSeconds(startedAt: number | null, active: boolean) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!active || !startedAt) {
+      setElapsed(0);
+      return;
+    }
+    setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    const id = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    }, 500);
+    return () => clearInterval(id);
+  }, [startedAt, active]);
+  return elapsed;
+}
+
+function ImageGenerateButton({
+  onGenerate,
+  readyToGenerate,
+}: {
+  onGenerate: () => void;
+  readyToGenerate: boolean;
+}) {
+  const { imageGeneration, imageConfig } = useAppStore();
+  const isGenerating = imageGeneration.status === 'generating';
+  const elapsed = useElapsedSeconds(imageGeneration.startedAt, isGenerating);
+
+  return (
+    <Button
+      onClick={onGenerate}
+      disabled={isGenerating}
+      className={`w-full transition-all ${readyToGenerate ? 'animate-pulse ring-4 ring-teal-300 shadow-lg scale-105' : ''}`}
+      size="lg"
+    >
+      {isGenerating ? (
+        <div className="flex items-center justify-center">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+          Generating {imageConfig.n} image{imageConfig.n > 1 ? 's' : ''}... {elapsed}s
+        </div>
+      ) : (
+        `Generate ${imageConfig.n} Image${imageConfig.n > 1 ? 's' : ''}`
+      )}
+    </Button>
+  );
+}
+
+function ImageGenerationPreview() {
+  const { imageGeneration, imageConfig } = useAppStore();
+  if (imageGeneration.status !== 'generating') return null;
+  const previews = imageGeneration.partialPreviews;
+  const hasAny = previews.some((p) => p);
+  if (!hasAny) return null;
+
+  return (
+    <div className="px-6 pt-4 pb-2 border-t border-gray-200 bg-gray-50">
+      <div className="text-xs text-gray-500 mb-2">
+        Live preview {imageGeneration.activeIndex + 1}/{imageConfig.n}
+      </div>
+      <div
+        className={`grid gap-2 ${
+          imageConfig.n === 1 ? 'grid-cols-1' : imageConfig.n === 2 ? 'grid-cols-2' : 'grid-cols-4'
+        }`}
+      >
+        {previews.map((src, idx) => (
+          <div
+            key={idx}
+            className={`relative aspect-square rounded-md overflow-hidden bg-white border ${
+              idx === imageGeneration.activeIndex ? 'border-teal-500' : 'border-gray-200'
+            }`}
+          >
+            {src ? (
+              <img src={src} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full animate-pulse bg-gray-200" />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const {
     apiKey,
@@ -663,6 +745,7 @@ export default function Home() {
           <div className="flex-1 overflow-hidden">
             <ChatPanel />
           </div>
+          {generationMode === 'image' && <ImageGenerationPreview />}
           <div className="p-6 border-t border-gray-200">
             {generationMode === 'video' ? (
               <Button
@@ -682,18 +765,10 @@ export default function Home() {
                 )}
               </Button>
             ) : (
-              <Button
-                onClick={handleGenerateImages}
-                disabled={imageGeneration.status === 'generating'}
-                className={`w-full transition-all ${readyToGenerate ? 'animate-pulse ring-4 ring-teal-300 shadow-lg scale-105' : ''}`}
-                size="lg"
-              >
-                {imageGeneration.status === 'generating' ? (
-                  <div className="flex items-center justify-center"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>Generating {imageConfig.n} image{imageConfig.n > 1 ? 's' : ''}...</div>
-                ) : (
-                  `Generate ${imageConfig.n} Image${imageConfig.n > 1 ? 's' : ''}`
-                )}
-              </Button>
+              <ImageGenerateButton
+                onGenerate={handleGenerateImages}
+                readyToGenerate={readyToGenerate}
+              />
             )}
           </div>
         </div>
