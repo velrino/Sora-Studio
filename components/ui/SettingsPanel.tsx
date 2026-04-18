@@ -3,6 +3,8 @@
 import { useAppStore } from '@/store/useAppStore';
 import React, { useState } from 'react';
 import { Button } from './Button';
+import { testConnection } from '@/lib/supabaseSync';
+import { toast } from 'sonner';
 
 interface SettingsPanelProps {
   isOpen: boolean;
@@ -10,9 +12,50 @@ interface SettingsPanelProps {
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose }) => {
-  const { apiKey, setApiKey } = useAppStore();
+  const { apiKey, setApiKey, supabaseConfig, setSupabaseConfig } = useAppStore();
   const [newApiKey, setNewApiKey] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+
+  const [supabaseUrl, setSupabaseUrl] = useState(supabaseConfig?.url ?? '');
+  const [supabaseKey, setSupabaseKey] = useState(supabaseConfig?.anonKey ?? '');
+  const [supabaseBucket, setSupabaseBucket] = useState(supabaseConfig?.bucket ?? 'sora');
+  const [testing, setTesting] = useState(false);
+
+  const handleTestSupabase = async () => {
+    if (!supabaseUrl.trim() || !supabaseKey.trim() || !supabaseBucket.trim()) {
+      toast.error('Fill URL, anon key and bucket first');
+      return;
+    }
+    setTesting(true);
+    const result = await testConnection({
+      url: supabaseUrl.trim(),
+      anonKey: supabaseKey.trim(),
+      bucket: supabaseBucket.trim(),
+    });
+    setTesting(false);
+    if (result.ok) toast.success('Supabase: ' + result.message);
+    else toast.error('Supabase: ' + result.message);
+  };
+
+  const handleSaveSupabase = () => {
+    if (!supabaseUrl.trim() || !supabaseKey.trim() || !supabaseBucket.trim()) {
+      toast.error('Fill URL, anon key and bucket first');
+      return;
+    }
+    setSupabaseConfig({
+      url: supabaseUrl.trim(),
+      anonKey: supabaseKey.trim(),
+      bucket: supabaseBucket.trim(),
+    });
+    toast.success('Cloud sync enabled');
+  };
+
+  const handleDisconnectSupabase = () => {
+    setSupabaseConfig(null);
+    setSupabaseUrl('');
+    setSupabaseKey('');
+    toast.success('Cloud sync disconnected');
+  };
 
   if (!isOpen) return null;
 
@@ -129,6 +172,77 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                   Get your key here
                 </a>
               </p>
+            </div>
+
+            <div className="border-t pt-6">
+              <h3 className="text-sm font-medium text-gray-700 mb-1">Cloud Sync (Supabase)</h3>
+              <p className="text-xs text-gray-500 mb-3">
+                Optional. Uploads generated images to your own Supabase Storage bucket so they survive
+                device changes. Everything stays in your Supabase project —{' '}
+                <a
+                  href="https://supabase.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-teal-600 hover:text-teal-700 underline"
+                >
+                  create a free account
+                </a>
+                , make a Storage bucket, then paste your Project URL and anon key below.
+              </p>
+
+              {supabaseConfig ? (
+                <div className="space-y-3">
+                  <div className="bg-green-50 border border-green-200 px-3 py-2 rounded-lg text-xs text-green-800">
+                    Connected to <span className="font-semibold">{supabaseConfig.bucket}</span> at{' '}
+                    <span className="font-mono">{supabaseConfig.url.replace('https://', '')}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="secondary" size="sm" onClick={handleTestSupabase} disabled={testing}>
+                      {testing ? 'Testing...' : 'Test connection'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleDisconnectSupabase}
+                      className="text-red-600 hover:bg-red-50"
+                    >
+                      Disconnect
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={supabaseUrl}
+                    onChange={(e) => setSupabaseUrl(e.target.value)}
+                    placeholder="https://xxxxxxxx.supabase.co"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
+                  />
+                  <input
+                    type="password"
+                    value={supabaseKey}
+                    onChange={(e) => setSupabaseKey(e.target.value)}
+                    placeholder="anon public key"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
+                  />
+                  <input
+                    type="text"
+                    value={supabaseBucket}
+                    onChange={(e) => setSupabaseBucket(e.target.value)}
+                    placeholder="bucket name (e.g. sora)"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
+                  />
+                  <div className="flex gap-2">
+                    <Button variant="secondary" size="sm" onClick={handleTestSupabase} disabled={testing}>
+                      {testing ? 'Testing...' : 'Test connection'}
+                    </Button>
+                    <Button variant="primary" size="sm" onClick={handleSaveSupabase}>
+                      Save & enable
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="border-t pt-6">

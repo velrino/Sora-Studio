@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { putImage, getImage, deleteImage as deleteImageFromIDB, deleteImages as deleteImagesFromIDB } from '@/lib/imageStorage';
+import { uploadImage as uploadImageToSupabase, removeImage as removeImageFromSupabase, imagePathFor } from '@/lib/supabaseSync';
 
 export type InfoMessageType = 'generation' | 'remix_reference';
 
@@ -60,6 +61,8 @@ export interface SavedImage {
   prompt: string;
   title: string;
   dataUrl: string;
+  cloudUrl?: string;
+  cloudPath?: string;
   createdAt: number;
   model: string;
   size: string;
@@ -67,6 +70,12 @@ export interface SavedImage {
   groupId: string;
   indexInGroup: number;
   hadBaseImage: boolean;
+}
+
+export interface SupabaseConfigState {
+  url: string;
+  anonKey: string;
+  bucket: string;
 }
 
 export interface VideoConfig {
@@ -113,6 +122,11 @@ interface AppState {
   // Image Configuration
   imageConfig: ImageConfig;
   setImageConfig: (config: Partial<ImageConfig>) => void;
+
+  // Supabase Cloud Sync (optional)
+  supabaseConfig: SupabaseConfigState | null;
+  setSupabaseConfig: (config: SupabaseConfigState | null) => void;
+  updateSavedImage: (id: string, patch: Partial<SavedImage>) => void;
 
   // Base Image
   baseImage: { file?: File; previewUrl: string; cropX?: number; cropY?: number } | null;
@@ -221,6 +235,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     const newConfig = { ...get().imageConfig, ...config };
     localStorage.setItem('image_config', JSON.stringify(newConfig));
     set({ imageConfig: newConfig });
+  },
+
+  // Supabase Cloud Sync
+  supabaseConfig: null,
+  setSupabaseConfig: (config) => {
+    if (config) {
+      localStorage.setItem('supabase_config', JSON.stringify(config));
+    } else {
+      localStorage.removeItem('supabase_config');
+    }
+    set({ supabaseConfig: config });
+  },
+  updateSavedImage: (id, patch) => {
+    const state = get();
+    const updated = state.savedImages.map((img) => (img.id === id ? { ...img, ...patch } : img));
+    persistSavedImagesMeta(updated);
+    set({ savedImages: updated });
   },
 
   // Base Image
@@ -438,15 +469,32 @@ export const useAppStore = create<AppState>((set, get) => ({
     persistSavedImagesMeta(updated);
     set({ savedImages: updated });
 
+    // Optional: sync to Supabase in background.
+    const supabase = state.supabaseConfig;
+    if (supabase?.url && supabase?.anonKey && supabase?.bucket) {
+      for (const entry of entries) {
+        const path = imagePathFor(entry.groupId, entry.indexInGroup);
+        uploadImageToSupabase(supabase, path, entry.dataUrl)
+          .then((cloudUrl) => get().updateSavedImage(entry.id, { cloudUrl, cloudPath: path }))
+          .catch((err) => console.error('Supabase upload failed:', err));
+      }
+    }
+
     return entries.map((e) => e.id);
   },
 
   deleteImage: (id) => {
     const state = get();
+    const target = state.savedImages.find((img) => img.id === id);
     const updated = state.savedImages.filter((img) => img.id !== id);
     persistSavedImagesMeta(updated);
     set({ savedImages: updated });
     deleteImageFromIDB(id).catch((err) => console.error('Failed to delete image from IDB:', err));
+    if (target?.cloudPath && state.supabaseConfig) {
+      removeImageFromSupabase(state.supabaseConfig, target.cloudPath).catch((err) =>
+        console.error('Failed to delete image from Supabase:', err),
+      );
+    }
   },
 
   saveVideo: (videoId, prompt, title, remixedFromVideoId = null) => {
@@ -582,5 +630,17 @@ if (typeof window !== 'undefined') {
   const storedGenerationMode = localStorage.getItem('generation_mode') as GenerationMode | null;
   if (storedGenerationMode === 'video' || storedGenerationMode === 'image') {
     useAppStore.setState({ generationMode: storedGenerationMode });
+  }
+
+  const storedSupabase = localStorage.getItem('supabase_config');
+  if (storedSupabase) {
+    try {
+      const parsed = JSON.parse(storedSupabase);
+      if (parsed?.url && parsed?.anonKey && parsed?.bucket) {
+        useAppStore.setState({ supabaseConfig: parsed });
+      }
+    } catch (e) {
+      console.error('Failed to parse supabase config');
+    }
   }
 }
