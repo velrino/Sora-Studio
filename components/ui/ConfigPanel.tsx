@@ -4,6 +4,7 @@ import { useAppStore } from '@/store/useAppStore';
 import React, { useEffect } from 'react';
 import { getSizeOptionsForModel } from '@/lib/videoOptions';
 import { estimateImageCost, formatCost } from '@/lib/imagePricing';
+import { estimateVideoCost } from '@/lib/videoPricing';
 
 const IMAGE_SIZE_OPTIONS = [
   { value: '1024x1024', label: '1024 × 1024 (Square)' },
@@ -31,6 +32,11 @@ const VideoConfig: React.FC = () => {
   const { videoConfig, setVideoConfig, selectedModel, remixReference, clearRemixReference } = useAppStore();
 
   const sizeOptions = getSizeOptionsForModel(selectedModel);
+  const videoCost = estimateVideoCost({
+    model: selectedModel,
+    size: videoConfig.size,
+    seconds: videoConfig.seconds,
+  });
 
   useEffect(() => {
     const isCurrentSizeValid = sizeOptions.some(option => option.value === videoConfig.size);
@@ -58,6 +64,22 @@ const VideoConfig: React.FC = () => {
             Current Model: <span className="font-semibold text-teal-600">{selectedModel === 'sora-2' ? 'Sora 2 Base' : 'Sora 2 Pro'}</span>
           </p>
         </div>
+      </div>
+
+      <div className="bg-teal-50 border border-teal-200 rounded-lg p-3">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs font-medium text-teal-900">Estimated cost</span>
+        </div>
+        {videoCost ? (
+          <>
+            <p className="text-lg font-bold text-teal-700">{formatCost(videoCost.total)}</p>
+            <p className="text-xs text-gray-600 mt-0.5">
+              {videoCost.seconds}s × {formatCost(videoCost.perSecond)}/second
+            </p>
+          </>
+        ) : (
+          <p className="text-xs text-gray-500">Pricing unavailable for current selection.</p>
+        )}
       </div>
 
       <div className="space-y-3">
