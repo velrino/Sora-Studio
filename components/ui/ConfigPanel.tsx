@@ -24,12 +24,7 @@ const IMAGE_MODEL_OPTIONS = [
   { value: 'gpt-image-1-mini', label: 'gpt-image-1-mini (cheapest)' },
 ];
 
-const PARTIAL_IMAGE_OPTIONS: Array<{ value: 0 | 1 | 2 | 3; label: string }> = [
-  { value: 0, label: 'Off (no preview, cheapest)' },
-  { value: 1, label: '1 preview frame (+100 tokens/image)' },
-  { value: 2, label: '2 preview frames (+200 tokens/image)' },
-  { value: 3, label: '3 preview frames (+300 tokens/image)' },
-];
+const LIVE_PREVIEW_PARTIAL_COUNT = 2;
 
 const VideoConfig: React.FC = () => {
   const { videoConfig, setVideoConfig, selectedModel, remixReference, clearRemixReference } = useAppStore();
@@ -218,23 +213,33 @@ const ImageConfig: React.FC = () => {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Live preview</label>
-        <select
-          value={imageConfig.partialImages}
-          onChange={(e) =>
-            setImageConfig({ partialImages: Number(e.target.value) as 0 | 1 | 2 | 3 })
-          }
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white text-gray-900"
-        >
-          {PARTIAL_IMAGE_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <p className="text-xs text-gray-500 mt-1">
-          Streams progressive frames as the image forms. Each preview frame adds ~100 output tokens per image. Not supported for base-image edits.
-        </p>
+        <label className="flex items-center justify-between gap-3 cursor-pointer">
+          <div>
+            <span className="block text-sm font-medium text-gray-700">Live preview</span>
+            <span className="block text-xs text-gray-500 mt-0.5">
+              Stream progressive frames as each image forms (+200 tokens/image). Not supported for base-image edits.
+            </span>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={imageConfig.partialImages > 0}
+            onClick={() =>
+              setImageConfig({
+                partialImages: imageConfig.partialImages > 0 ? 0 : LIVE_PREVIEW_PARTIAL_COUNT,
+              })
+            }
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+              imageConfig.partialImages > 0 ? 'bg-teal-600' : 'bg-gray-300'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                imageConfig.partialImages > 0 ? 'translate-x-5' : 'translate-x-0.5'
+              }`}
+            />
+          </button>
+        </label>
       </div>
 
       <div className="border-t pt-6">
