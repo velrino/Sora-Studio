@@ -21,32 +21,37 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
   const [supabaseBucket, setSupabaseBucket] = useState(supabaseConfig?.bucket ?? 'sora');
   const [testing, setTesting] = useState(false);
 
+  // Strip all whitespace (JWT tokens break on any embedded space / newline).
+  const stripWhitespace = (s: string) => s.replace(/\s+/g, '');
+
   const handleTestSupabase = async () => {
-    if (!supabaseUrl.trim() || !supabaseKey.trim() || !supabaseBucket.trim()) {
+    const url = stripWhitespace(supabaseUrl);
+    const anonKey = stripWhitespace(supabaseKey);
+    const bucket = supabaseBucket.trim();
+    if (!url || !anonKey || !bucket) {
       toast.error('Fill URL, anon key and bucket first');
       return;
     }
     setTesting(true);
-    const result = await testConnection({
-      url: supabaseUrl.trim(),
-      anonKey: supabaseKey.trim(),
-      bucket: supabaseBucket.trim(),
-    });
+    const result = await testConnection({ url, anonKey, bucket });
     setTesting(false);
     if (result.ok) toast.success('Supabase: ' + result.message);
     else toast.error('Supabase: ' + result.message);
   };
 
   const handleSaveSupabase = () => {
-    if (!supabaseUrl.trim() || !supabaseKey.trim() || !supabaseBucket.trim()) {
+    const url = stripWhitespace(supabaseUrl);
+    const anonKey = stripWhitespace(supabaseKey);
+    const bucket = supabaseBucket.trim();
+    if (!url || !anonKey || !bucket) {
       toast.error('Fill URL, anon key and bucket first');
       return;
     }
-    setSupabaseConfig({
-      url: supabaseUrl.trim(),
-      anonKey: supabaseKey.trim(),
-      bucket: supabaseBucket.trim(),
-    });
+    setSupabaseConfig({ url, anonKey, bucket });
+    // Reflect cleaned values in the inputs so the user sees what was saved.
+    setSupabaseUrl(url);
+    setSupabaseKey(anonKey);
+    setSupabaseBucket(bucket);
     toast.success('Cloud sync enabled');
   };
 
@@ -135,6 +140,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                     value={newApiKey}
                     onChange={(e) => setNewApiKey(e.target.value)}
                     placeholder="sk-..."
+                    autoComplete="new-password"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    data-1p-ignore
+                    data-lpignore="true"
+                    data-form-type="other"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                   />
                   <div className="flex gap-2">
@@ -217,6 +229,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                     value={supabaseUrl}
                     onChange={(e) => setSupabaseUrl(e.target.value)}
                     placeholder="https://xxxxxxxx.supabase.co"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    data-1p-ignore
+                    data-lpignore="true"
+                    data-form-type="other"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
                   />
                   <input
@@ -224,6 +243,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                     value={supabaseKey}
                     onChange={(e) => setSupabaseKey(e.target.value)}
                     placeholder="anon public key"
+                    autoComplete="new-password"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    data-1p-ignore
+                    data-lpignore="true"
+                    data-form-type="other"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
                   />
                   <input
@@ -231,6 +257,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                     value={supabaseBucket}
                     onChange={(e) => setSupabaseBucket(e.target.value)}
                     placeholder="bucket name (e.g. sora)"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    data-1p-ignore
+                    data-lpignore="true"
+                    data-form-type="other"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
                   />
                   <div className="flex gap-2">

@@ -282,16 +282,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     },
   ],
   addChatMessage: (message) =>
-    set((state) => ({
-      chatMessages: [
-        ...state.chatMessages,
-        {
-          ...message,
-          id: `msg-${Date.now()}`,
-          timestamp: Date.now(),
-        },
-      ],
-    })),
+    set((state) => {
+      const now = Date.now();
+      return {
+        chatMessages: [
+          ...state.chatMessages,
+          {
+            ...message,
+            id: `msg-${now}-${Math.random().toString(36).slice(2, 8)}`,
+            timestamp: now,
+          },
+        ],
+      };
+    }),
   readyToGenerate: false,
   setReadyToGenerate: (ready) => set({ readyToGenerate: ready }),
   remixReference: null,
