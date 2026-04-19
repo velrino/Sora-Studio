@@ -10,10 +10,23 @@ interface ChatMessageProps {
 }
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
-  const { apiKey } = useAppStore();
+  const { apiKey, savedImages } = useAppStore();
   const isAssistant = message.role === 'assistant';
   const isInfo = message.role === 'info';
   const isError = message.role === 'error';
+
+  const attachedImages = message.imageIds
+    ? message.imageIds
+        .map((id) => savedImages.find((img) => img.id === id))
+        .filter((img): img is NonNullable<typeof img> => Boolean(img))
+    : [];
+
+  const handleImageDownload = (dataUrl: string, filename: string) => {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = filename;
+    a.click();
+  };
 
   const handleDownload = async (videoId: string) => {
     try {
@@ -67,44 +80,85 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       );
     }
 
-    const isCompleted = metadata?.status === 'completed' || !!message.videoId;
+    const isCompleted = metadata?.status === 'completed' || !!message.videoId || (message.imageIds && message.imageIds.length > 0);
     const isRemix = metadata?.isRemix;
     const titleText = metadata?.title;
-    const mainTitle = isCompleted
-      ? isRemix
-        ? 'Remix Ready'
-        : 'Video Generated'
-      : isRemix
-        ? 'Remixing Video'
-        : 'Generating Video';
+    const isImage = metadata?.mediaType === 'image' || (message.imageIds && message.imageIds.length > 0);
+    const mainTitle = isImage
+      ? isCompleted
+        ? 'Images Generated'
+        : 'Generating Images'
+      : isCompleted
+        ? isRemix
+          ? 'Remix Ready'
+          : 'Video Generated'
+        : isRemix
+          ? 'Remixing Video'
+          : 'Generating Video';
     const iconColor = isCompleted ? 'text-teal-600' : 'text-blue-600';
     const bgColor = isCompleted ? 'bg-teal-100' : 'bg-blue-100';
 
     return (
       <div className="flex justify-center mb-4">
-        <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-teal-50 to-blue-50 border border-teal-200 rounded-lg shadow-sm">
-          <div className={`flex-shrink-0 w-10 h-10 ${bgColor} rounded-full flex items-center justify-center`}>
-            <svg className={`w-5 h-5 ${iconColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-gray-900">{mainTitle}</p>
-            {titleText && (
-              <p className="text-xs text-gray-700 font-semibold">{titleText}</p>
-            )}
-            <p className="text-xs text-gray-600">{message.content}</p>
-          </div>
-          {message.videoId && (
-            <button
-              onClick={() => handleDownload(message.videoId!)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        <div className="flex flex-col gap-3 px-4 py-3 bg-gradient-to-r from-teal-50 to-blue-50 border border-teal-200 rounded-lg shadow-sm max-w-[90%]">
+          <div className="flex items-center gap-3">
+            <div className={`flex-shrink-0 w-10 h-10 ${bgColor} rounded-full flex items-center justify-center`}>
+              <svg className={`w-5 h-5 ${iconColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
-              Download
-            </button>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-900">{mainTitle}</p>
+              {titleText && (
+                <p className="text-xs text-gray-700 font-semibold">{titleText}</p>
+              )}
+              <p className="text-xs text-gray-600">{message.content}</p>
+            </div>
+            {message.videoId && (
+              <button
+                onClick={() => handleDownload(message.videoId!)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download
+              </button>
+            )}
+          </div>
+          {attachedImages.length > 0 && (
+            <div
+              className={`grid gap-2 ${
+                attachedImages.length === 1
+                  ? 'grid-cols-1'
+                  : attachedImages.length === 2
+                    ? 'grid-cols-2'
+                    : 'grid-cols-2'
+              }`}
+            >
+              {attachedImages.map((img, idx) => (
+                <div
+                  key={img.id}
+                  className="relative group rounded-md overflow-hidden border border-gray-200 bg-white"
+                >
+                  {img.dataUrl ? (
+                    <img src={img.dataUrl} alt={`${img.title} ${idx + 1}`} className="w-full h-auto" />
+                  ) : (
+                    <div className="aspect-square bg-gray-100 animate-pulse" />
+                  )}
+                  <button
+                    disabled={!img.dataUrl}
+                    onClick={() => img.dataUrl && handleImageDownload(img.dataUrl, `${img.title || 'image'}-${idx + 1}.png`)}
+                    className="absolute top-2 right-2 p-1.5 bg-white bg-opacity-90 text-teal-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                    title="Download image"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>

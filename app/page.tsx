@@ -8,6 +8,7 @@ import { ConfigPanel } from '@/components/ui/ConfigPanel';
 import { LibraryPanel } from '@/components/ui/LibraryPanel';
 import { SettingsPanel } from '@/components/ui/SettingsPanel';
 import { useVideoGeneration } from '@/lib/useVideoGeneration';
+import { useImageGeneration } from '@/lib/useImageGeneration';
 import { useAppStore } from '@/store/useAppStore';
 import { Check, DownloadCloud } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -341,6 +342,189 @@ function ChatHistoryContent() {
   );
 }
 
+// Image History Content Component
+function ImageHistoryContent() {
+  const { savedImages, deleteImage } = useAppStore();
+
+  const handleDownload = (dataUrl: string, filename: string) => {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = filename;
+    a.click();
+  };
+
+  if (savedImages.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 px-4 text-gray-500">
+        <svg className="w-12 h-12 mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        <p className="text-sm font-medium">No images yet</p>
+        <p className="text-xs text-center mt-1">Switch to Image mode and generate your first one</p>
+      </div>
+    );
+  }
+
+  const groups = Array.from(
+    savedImages.reduce((acc, img) => {
+      const list = acc.get(img.groupId) ?? [];
+      list.push(img);
+      acc.set(img.groupId, list);
+      return acc;
+    }, new Map<string, typeof savedImages>()).entries(),
+  ).sort((a, b) => b[1][0].createdAt - a[1][0].createdAt);
+
+  return (
+    <div className="p-4 space-y-4">
+      {groups.map(([groupId, images]) => {
+        const first = images[0];
+        return (
+          <div
+            key={groupId}
+            className="p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
+          >
+            <p className="text-sm font-semibold text-gray-900 line-clamp-2 mb-1">{first.title}</p>
+            <div className="flex items-center gap-2 mb-2 text-xs text-gray-500">
+              <span>{new Date(first.createdAt).toLocaleDateString()}</span>
+              <span>•</span>
+              <span>{images.length} image{images.length > 1 ? 's' : ''}</span>
+              <span>•</span>
+              <span>{first.size}</span>
+              {first.hadBaseImage && (
+                <>
+                  <span>•</span>
+                  <span className="text-purple-600">edit</span>
+                </>
+              )}
+            </div>
+            <div
+              className={`grid gap-2 ${
+                images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'
+              }`}
+            >
+              {images
+                .sort((a, b) => a.indexInGroup - b.indexInGroup)
+                .map((img, idx) => (
+                  <div
+                    key={img.id}
+                    className="relative group rounded-md overflow-hidden border border-gray-200"
+                  >
+                    {img.dataUrl ? (
+                      <img src={img.dataUrl} alt={`${img.title} ${idx + 1}`} className="w-full h-auto block" />
+                    ) : (
+                      <div className="aspect-square bg-gray-100 animate-pulse" />
+                    )}
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                      <button
+                        disabled={!img.dataUrl}
+                        onClick={() => img.dataUrl && handleDownload(img.dataUrl, `${img.title || 'image'}-${idx + 1}.png`)}
+                        className="p-2 bg-white text-teal-700 rounded-full shadow hover:bg-teal-50"
+                        title="Download"
+                      >
+                        <DownloadCloud className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => deleteImage(img.id)}
+                        className="p-2 bg-white text-red-600 rounded-full shadow hover:bg-red-50"
+                        title="Delete"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function useElapsedSeconds(startedAt: number | null, active: boolean) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!active || !startedAt) {
+      setElapsed(0);
+      return;
+    }
+    setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    const id = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    }, 500);
+    return () => clearInterval(id);
+  }, [startedAt, active]);
+  return elapsed;
+}
+
+function ImageGenerateButton({
+  onGenerate,
+  readyToGenerate,
+}: {
+  onGenerate: () => void;
+  readyToGenerate: boolean;
+}) {
+  const { imageGeneration, imageConfig } = useAppStore();
+  const isGenerating = imageGeneration.status === 'generating';
+  const elapsed = useElapsedSeconds(imageGeneration.startedAt, isGenerating);
+
+  return (
+    <Button
+      onClick={onGenerate}
+      disabled={isGenerating}
+      className={`w-full transition-all ${readyToGenerate ? 'animate-pulse ring-4 ring-teal-300 shadow-lg scale-105' : ''}`}
+      size="lg"
+    >
+      {isGenerating ? (
+        <div className="flex items-center justify-center">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+          Generating {imageConfig.n} image{imageConfig.n > 1 ? 's' : ''}... {elapsed}s
+        </div>
+      ) : (
+        `Generate ${imageConfig.n} Image${imageConfig.n > 1 ? 's' : ''}`
+      )}
+    </Button>
+  );
+}
+
+function ImageGenerationPreview() {
+  const { imageGeneration, imageConfig } = useAppStore();
+  if (imageGeneration.status !== 'generating') return null;
+  const previews = imageGeneration.partialPreviews;
+  const hasAny = previews.some((p) => p);
+  if (!hasAny) return null;
+
+  return (
+    <div className="px-6 pt-4 pb-2 border-t border-gray-200 bg-gray-50">
+      <div className="text-xs text-gray-500 mb-2">
+        Live preview {imageGeneration.activeIndex + 1}/{imageConfig.n}
+      </div>
+      <div
+        className={`grid gap-2 ${
+          imageConfig.n === 1 ? 'grid-cols-1' : imageConfig.n === 2 ? 'grid-cols-2' : 'grid-cols-4'
+        }`}
+      >
+        {previews.map((src, idx) => (
+          <div
+            key={idx}
+            className={`relative aspect-square rounded-md overflow-hidden bg-white border ${
+              idx === imageGeneration.activeIndex ? 'border-teal-500' : 'border-gray-200'
+            }`}
+          >
+            {src ? (
+              <img src={src} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full animate-pulse bg-gray-200" />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const {
     apiKey,
@@ -351,11 +535,17 @@ export default function Home() {
     setReadyToGenerate,
     selectedModel,
     setSelectedModel,
+    generationMode,
+    setGenerationMode,
+    imageConfig,
+    setImageConfig,
+    imageGeneration,
   } = useAppStore();
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [leftPanelTab, setLeftPanelTab] = useState<'videos' | 'chats'>('videos');
+  const [leftPanelTab, setLeftPanelTab] = useState<'videos' | 'images' | 'chats'>('videos');
   const { generateVideo } = useVideoGeneration();
+  const { generateImages } = useImageGeneration();
   const [isGenerateButtonLocked, setIsGenerateButtonLocked] = useState(false);
 
   useEffect(() => {
@@ -406,6 +596,31 @@ export default function Home() {
     generateVideo();
   };
 
+  const handleGenerateImages = async () => {
+    if (imageGeneration.status === 'generating') return;
+    if (!apiKey) {
+      toast.error('Please set your OpenAI API key in settings');
+      return;
+    }
+
+    const state = useAppStore.getState();
+    const pending = state.chatInput.trim();
+    const hasUserPrompt = state.chatMessages.some(
+      (m) => m.role === 'user' && m.content.trim().length > 0,
+    );
+
+    if (pending) {
+      state.addChatMessage({ role: 'user', content: pending });
+      state.setChatInput('');
+    } else if (!hasUserPrompt) {
+      toast.error('Please describe the image you want in the chat');
+      return;
+    }
+
+    setReadyToGenerate(false);
+    generateImages();
+  };
+
   return (
     <main className="h-screen flex flex-col bg-paper-white paper-texture">
       {/* Privacy Banner */}
@@ -450,28 +665,68 @@ export default function Home() {
                 </svg>
               </button>
 
-              {/* Model Toggle */}
-              <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
-                <span className="text-sm font-medium text-gray-600 pl-2">Sora 2</span>
+              {/* Generation Mode Toggle */}
+              <div className="flex items-center bg-gray-100 rounded-lg p-1">
                 <button
-                  onClick={() => setSelectedModel('sora-2')}
-                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${selectedModel === 'sora-2'
+                  onClick={() => setGenerationMode('video')}
+                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${generationMode === 'video'
                     ? 'bg-teal-600 text-white'
                     : 'text-gray-600 hover:text-gray-900'
                     }`}
                 >
-                  Base
+                  Video
                 </button>
                 <button
-                  onClick={() => setSelectedModel('sora-2-pro')}
-                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${selectedModel === 'sora-2-pro'
+                  onClick={() => setGenerationMode('image')}
+                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${generationMode === 'image'
                     ? 'bg-teal-600 text-white'
                     : 'text-gray-600 hover:text-gray-900'
                     }`}
                 >
-                  Pro
+                  Image
                 </button>
               </div>
+
+              {/* Model / Quantity Selectors */}
+              {generationMode === 'video' ? (
+                <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+                  <span className="text-sm font-medium text-gray-600 pl-2">Sora 2</span>
+                  <button
+                    onClick={() => setSelectedModel('sora-2')}
+                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${selectedModel === 'sora-2'
+                      ? 'bg-teal-600 text-white'
+                      : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                  >
+                    Base
+                  </button>
+                  <button
+                    onClick={() => setSelectedModel('sora-2-pro')}
+                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${selectedModel === 'sora-2-pro'
+                      ? 'bg-teal-600 text-white'
+                      : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                  >
+                    Pro
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+                  <span className="text-sm font-medium text-gray-600 pl-2">Count</span>
+                  {[1, 2, 3, 4].map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => setImageConfig({ n })}
+                      className={`px-3 py-1 rounded text-sm font-medium transition-colors ${imageConfig.n === n
+                        ? 'bg-teal-600 text-white'
+                        : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -498,6 +753,20 @@ export default function Home() {
               </div>
             </button>
             <button
+              onClick={() => setLeftPanelTab('images')}
+              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${leftPanelTab === 'images'
+                ? 'text-teal-600 border-b-2 border-teal-600 bg-teal-50'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Images
+              </div>
+            </button>
+            <button
               onClick={() => setLeftPanelTab('chats')}
               className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${leftPanelTab === 'chats'
                 ? 'text-teal-600 border-b-2 border-teal-600 bg-teal-50'
@@ -516,6 +785,7 @@ export default function Home() {
           {/* Tab Content */}
           <div className="flex-1 overflow-y-auto">
             {leftPanelTab === 'videos' && <VideoHistoryContent />}
+            {leftPanelTab === 'images' && <ImageHistoryContent />}
             {leftPanelTab === 'chats' && <ChatHistoryContent />}
           </div>
         </div>
@@ -525,23 +795,31 @@ export default function Home() {
           <div className="flex-1 overflow-hidden">
             <ChatPanel />
           </div>
+          {generationMode === 'image' && <ImageGenerationPreview />}
           <div className="p-6 border-t border-gray-200">
-            <Button
-              onClick={handleGenerateVideo}
-              disabled={
-                isGenerateButtonLocked ||
-                videoGeneration.status === 'in_progress' ||
-                videoGeneration.status === 'queued'
-              }
-              className={`w-full transition-all ${readyToGenerate ? 'animate-pulse ring-4 ring-teal-300 shadow-lg scale-105' : ''}`}
-              size="lg"
-            >
-              {(videoGeneration.status === 'in_progress' || videoGeneration.status === 'queued') ? (
-                <div className="flex items-center justify-center"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>Generating Video ({videoGeneration.progress}%)</div>
-              ) : (
-                'Generate Video'
-              )}
-            </Button>
+            {generationMode === 'video' ? (
+              <Button
+                onClick={handleGenerateVideo}
+                disabled={
+                  isGenerateButtonLocked ||
+                  videoGeneration.status === 'in_progress' ||
+                  videoGeneration.status === 'queued'
+                }
+                className={`w-full transition-all ${readyToGenerate ? 'animate-pulse ring-4 ring-teal-300 shadow-lg scale-105' : ''}`}
+                size="lg"
+              >
+                {(videoGeneration.status === 'in_progress' || videoGeneration.status === 'queued') ? (
+                  <div className="flex items-center justify-center"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>Generating Video ({videoGeneration.progress}%)</div>
+                ) : (
+                  'Generate Video'
+                )}
+              </Button>
+            ) : (
+              <ImageGenerateButton
+                onGenerate={handleGenerateImages}
+                readyToGenerate={readyToGenerate}
+              />
+            )}
           </div>
         </div>
 

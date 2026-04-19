@@ -26,8 +26,9 @@ export const ChatPanel: React.FC = () => {
     setVideoConfig,
     selectedModel,
     setSelectedModel,
+    chatInput: input,
+    setChatInput: setInput,
   } = useAppStore();
-  const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
