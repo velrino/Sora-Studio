@@ -82,6 +82,7 @@ export function useImageGeneration() {
           type: 'generation',
           status: 'started',
           title,
+          mediaType: 'image',
         },
       });
 
@@ -203,7 +204,7 @@ async function runBatch(params: {
     role: 'info',
     content: `Generated ${images.length} image${images.length > 1 ? 's' : ''}: "${title}".`,
     imageIds,
-    metadata: { type: 'generation', status: 'completed', title },
+    metadata: { type: 'generation', status: 'completed', title, mediaType: 'image' },
   });
 
   saveCurrentConversation();
@@ -340,7 +341,7 @@ async function runStreaming(params: {
     role: 'info',
     content: `Generated ${completed.length} image${completed.length > 1 ? 's' : ''}: "${title}".`,
     imageIds,
-    metadata: { type: 'generation', status: 'completed', title },
+    metadata: { type: 'generation', status: 'completed', title, mediaType: 'image' },
   });
 
   saveCurrentConversation();

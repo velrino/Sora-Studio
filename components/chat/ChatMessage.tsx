@@ -80,16 +80,21 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       );
     }
 
-    const isCompleted = metadata?.status === 'completed' || !!message.videoId;
+    const isCompleted = metadata?.status === 'completed' || !!message.videoId || (message.imageIds && message.imageIds.length > 0);
     const isRemix = metadata?.isRemix;
     const titleText = metadata?.title;
-    const mainTitle = isCompleted
-      ? isRemix
-        ? 'Remix Ready'
-        : 'Video Generated'
-      : isRemix
-        ? 'Remixing Video'
-        : 'Generating Video';
+    const isImage = metadata?.mediaType === 'image' || (message.imageIds && message.imageIds.length > 0);
+    const mainTitle = isImage
+      ? isCompleted
+        ? 'Images Generated'
+        : 'Generating Images'
+      : isCompleted
+        ? isRemix
+          ? 'Remix Ready'
+          : 'Video Generated'
+        : isRemix
+          ? 'Remixing Video'
+          : 'Generating Video';
     const iconColor = isCompleted ? 'text-teal-600' : 'text-blue-600';
     const bgColor = isCompleted ? 'bg-teal-100' : 'bg-blue-100';
 

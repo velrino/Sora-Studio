@@ -9,6 +9,7 @@ export interface InfoMessageMetadata {
   status?: 'started' | 'completed';
   title?: string;
   isRemix?: boolean;
+  mediaType?: 'video' | 'image';
 }
 
 export interface ErrorMetadata {
